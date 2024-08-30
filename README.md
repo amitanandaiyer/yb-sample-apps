@@ -1,11 +1,9 @@
 # Notes towards reproing CE
 
-Has a sample app called CassandraBD which can be used similarly
-The key file is CassandraBD.java
-  For some unknown reason, the UPDATE query using IF xxx ELSE ERROR errors out, even though
-  running the same query from ycqlsh works fine.
+Has a sample app called CassandraBD which can be used similar to other sample apps. However follows the 
+query/schema patters of our CE.
 
-  I have dropped the `ELSE ERROR` part and the workload now runs happily.
+The key file is CassandraBD.java
 
   To run the workload,
    1) first we need to run something like
@@ -13,11 +11,67 @@ The key file is CassandraBD.java
    2) Then we can do Reads/Updates using
       java -jar yb-sample-apps.jar --nodes <ip>:9042 --workload CassandraBD --num_unique_keys 1000 --num_buckets 100 --do_updates true --num_threads_write 20 --num_threads_read 40
 
+  For some unknown reason, the UPDATE query using IF xxx ELSE ERROR errors out, even though
+  running the same query from ycqlsh works fine.
+
+```
+At the TServer/logs:
 W0830 09:53:24.848824 23927 process_context.cc:184] SQL Error: Execution Error. Condition on table preauth_unique_count was not satisfied.
 UPDATE preauth_unique_count USING TTL 86400 SET count = count + 1 WHERE key = ? AND bucket = ? IF COUNT < 100000 ELSE ERROR;
 ^^^^^^
-I0830 09:53:24.961725 23934 inbound_call.cc:125] Tracing op:
-I0830 09:53:24.961774 23934 trace.cc:442] 0830 09:53:24.963183 (+     0us) inbound_call.cc:115] Created InboundCall
+
+Client side:
+10772 [Thread-6] INFO com.yugabyte.sample.apps.AppBase  - Caught Exception:
+com.datastax.driver.core.exceptions.InvalidQueryException: Execution Error. Condition on table preauth_unique_count was not satisfied.
+UPDATE preauth_unique_count USING TTL 1000 SET count = count + 1 WHERE key = ? AND bucket = ? IF COUNT < 100000 ELSE ERROR;
+!!:s^^^^^^
+ (ql error -300)
+        at com.datastax.driver.core.exceptions.InvalidQueryException.copy(InvalidQueryException.java:50)
+        at com.datastax.driver.core.DriverThrowables.propagateCause(DriverThrowables.java:35)
+        at com.datastax.driver.core.DefaultResultSetFuture.getUninterruptibly(DefaultResultSetFuture.java:312)
+        at com.datastax.driver.core.AbstractSession.execute(AbstractSession.java:58)
+        at com.yugabyte.sample.apps.CassandraBD.doWrite(CassandraBD.java:235)
+        at com.yugabyte.sample.apps.AppBase.performWrite(AppBase.java:798)
+        at com.yugabyte.sample.common.IOPSThread.run(IOPSThread.java:115)
+Caused by: com.datastax.driver.core.exceptions.InvalidQueryException: Execution Error. Condition on table preauth_unique_count was ^Ct satisfied.
+UPDATE preauth_unique_count USING TTL 1000 SET count = count + 1 WHERE key = ? AND bucket = ? IF COUNT < 100000 ELSE ERROR;
+!!:s^^^^^^
+ (ql error -300)
+        at com.datastax.driver.core.Responses$Error.asException(Responses.java:181)
+        at com.datastax.driver.core.DefaultResultSetFuture.onSet(DefaultResultSetFuture.java:234)
+        at com.datastax.driver.core.RequestHandler.setFinalResult(RequestHandler.java:235)
+        at com.datastax.driver.core.RequestHandler.access$2600(RequestHandler.java:61)
+        at com.datastax.driver.core.RequestHandler$SpeculativeExecution.setFinalResult(RequestHandler.java:1011)
+        at com.datastax.driver.core.RequestHandler$SpeculativeExecution.onSet(RequestHandler.java:814)
+        at com.datastax.driver.core.Connection$Dispatcher.channelRead0(Connection.java:1322)
+        at com.datastax.driver.core.Connection$Dispatcher.channelRead0(Connection.java:1240)
+        at io.netty.channel.SimpleChannelInboundHandler.channelRead(SimpleChannelInboundHandler.java:105)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:356)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:342)
+        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:335)
+        at io.netty.handler.timeout.IdleStateHandler.channelRead(IdleStateHandler.java:286)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:356)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:342)
+        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:335)
+        at io.netty.handler.codec.MessageToMessageDecoder.channelRead(MessageToMessageDecoder.java:102)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:356)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:342)
+        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:335)
+        at io.netty.handler.codec.ByteToMessageDecoder.fireChannelRead(ByteToMessageDecoder.java:312)
+        at io.netty.handler.codec.ByteToMessageDecoder.channelRead(ByteToMessageDecoder.java:286)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:356)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:342)
+        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:335)
+        at io.netty.channel.ChannelInboundHandlerAdapter.channelRead(ChannelInboundHandlerAdapter.java:86)
+        at com.datastax.driver.core.InboundTrafficMeter.channelRead(InboundTrafficMeter.java:38)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:356)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:342)
+        at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:335)
+        at io.netty.channel.DefaultChannelPipeline$HeadContext.channelRead(DefaultChannelPipeline.java:1304)
+        at io.netty.channel.AbstractChannelHandlerContext.invokeChannelRead(AbstractChannelHandlerContext.java:356)
+```
+
+  I have dropped the `ELSE ERROR` part and the workload now runs happily.
 
 # YugabyteDB workload generator
 
