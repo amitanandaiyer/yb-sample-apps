@@ -58,6 +58,7 @@ public class CmdLineOpts {
     CassandraTransactionalKeyValue.class,
     CassandraTransactionalRestartRead.class,
     CassandraStockTicker.class,
+    CassandraBD.class,
     CassandraTimeseries.class,
     CassandraUserId.class,
     CassandraPersonalization.class,
@@ -828,6 +829,14 @@ public class CmdLineOpts {
     // Options for CassandraStockTicker workload.
     options.addOption("num_ticker_symbols", true,
                       "[CassandraStockTicker] The total number of stock ticker symbols.");
+
+    // Options for CassandraBD workload.
+    options.addOption("num_buckets", true,
+            "[CassandraBD] The total number of buckets per key.");
+    options.addOption("max_count_value", true,
+            "[CassandraBD] The max value of count in each bucket.");
+    options.addOption("do_updates", false,
+            "[CassandraBD] Should the app do Inserts or updates to the table.");
 
     // Options for the key-value workloads.
     options.addOption("num_unique_keys", true,
