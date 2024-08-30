@@ -188,7 +188,7 @@ public class CassandraBD  extends AppBase {
                     // Create the prepared statement object.
                     if (doUpdates) {
                         String update_stmt =
-                                String.format("UPDATE %s USING TTL %d SET count = count + 1 WHERE key = ? AND bucket = ? IF COUNT < %d ELSE ERROR;",
+                                String.format("UPDATE %s USING TTL %d SET count = count + 1 WHERE key = ? AND bucket = ? IF COUNT < %d;",
                                         bdTableName, appConfig.tableTTLSeconds, maxCountValue);
                         preparedInsertRaw = getCassandraClient().prepare(update_stmt);
 
