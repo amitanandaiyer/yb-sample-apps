@@ -835,7 +835,7 @@ public class CmdLineOpts {
             "[CassandraBD] The total number of buckets per key.");
     options.addOption("max_count_value", true,
             "[CassandraBD] The max value of count in each bucket.");
-    options.addOption("do_updates", false,
+    options.addOption("do_updates", true,
             "[CassandraBD] Should the app do Inserts or updates to the table.");
 
     // Options for the key-value workloads.

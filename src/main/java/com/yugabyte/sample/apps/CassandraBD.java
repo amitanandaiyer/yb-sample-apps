@@ -74,12 +74,12 @@ public class CassandraBD  extends AppBase {
     @Override
     public void initialize(CmdLineOpts configuration) {
         synchronized (this) {
-            LOG.info("Initializing CassandraStockTicker app...");
+            LOG.info("Initializing CassandraBD app...");
 
             // Read the various params from the command line.
             CommandLine commandLine = configuration.getCommandLine();
             if (commandLine.hasOption("num_buckets")) {
-                numBuckets = Integer.parseInt(commandLine.getOptionValue("num_ticker_symbols"));
+                numBuckets = Integer.parseInt(commandLine.getOptionValue("num_buckets"));
                 LOG.info("num_buckets: " + numBuckets);
             }
             if (commandLine.hasOption("max_count_value")) {
@@ -93,7 +93,7 @@ public class CassandraBD  extends AppBase {
 
             // Initialize the number of rows read.
             num_rows_read = new AtomicLong(0);
-            LOG.info("CassandraStockTicker app is ready.");
+            LOG.info("CassandraBD app is ready.");
         }
     }
 
@@ -107,7 +107,7 @@ public class CassandraBD  extends AppBase {
     public List<String> getCreateTableStatements() {
         // Create the raw table.
         String create_stmt = "CREATE TABLE IF NOT EXISTS " + bdTableName + " (" +
-                "key INT PRIMARY KEY, bucket INT, count INT) " +
+                "key INT, bucket INT, count INT, PRIMARY KEY ((key, bucket))) " +
                 " WITH default_time_to_live = 0 AND transactions = { 'enabled' : true };";
         return Arrays.asList(create_stmt);
     }
@@ -149,9 +149,9 @@ public class CassandraBD  extends AppBase {
                     appConfig.numKeysToWrite = appConfig.numUniqueKeysToWrite * numBuckets;
                     appConfig.numKeysToRead = 0;
                     appConfig.numReaderThreads = 0;
-                    LOG.info("Doing Pure Insserts, so updated appConfig.numKeysToWrite: " + appConfig.numKeysToWrite);
-                    LOG.info("Doing Pure Insserts, so updated appConfig.numKeysToRead : " + appConfig.numKeysToRead);
-                    LOG.info("Doing Pure Insserts, so updated appConfig.numReaderThreads: " + appConfig.numReaderThreads);
+                    LOG.info("Doing Pure Inserts, so updated appConfig.numKeysToWrite: " + appConfig.numKeysToWrite);
+                    LOG.info("Doing Pure Inserts, so updated appConfig.numKeysToRead : " + appConfig.numKeysToRead);
+                    LOG.info("Doing Pure Inserts, so updated appConfig.numReaderThreads: " + appConfig.numReaderThreads);
                 }
                 if (loadGenerator == null) {
                     loadGenerator = new SimpleLoadGenerator(0,
@@ -167,8 +167,8 @@ public class CassandraBD  extends AppBase {
     @Override
     public long doRead() {
         long input_key = getLoadGenerator().getKeyToWrite().asNumber();
-        long key = input_key / numBuckets;
-        long bucket = 1 + (input_key % numBuckets);
+        int key = (int)(input_key / numBuckets);
+        int bucket = 1 + (int)(input_key % numBuckets);
 
         // Bind the select statement.
         BoundStatement select = getPreparedSelectLatest().bind(key);
@@ -188,15 +188,15 @@ public class CassandraBD  extends AppBase {
                     // Create the prepared statement object.
                     if (doUpdates) {
                         String update_stmt =
-                                String.format("UPDATE %s USING TTL 1000 SET count = count + 1 WHERE key = ? AND bucket = ? IF COUNT < %d ELSE ERROR;",
-                                        bdTableName, maxCountValue);
+                                String.format("UPDATE %s USING TTL %d SET count = count + 1 WHERE key = ? AND bucket = ? IF COUNT < %d ELSE ERROR;",
+                                        bdTableName, appConfig.tableTTLSeconds, maxCountValue);
                         preparedInsertRaw = getCassandraClient().prepare(update_stmt);
 
                     } else {
                         String insert_stmt =
-                            String.format("INSERT INTO %s (ticker_id, ts, value) VALUES (?, ?, ?)" +
-                                            "IF NOT EXISTS USING TTL 1000 ",
-                                        bdTableName);
+                            String.format("INSERT INTO %s (key, bucket, count) VALUES (?, ?, 0)" +
+                                            "IF NOT EXISTS USING TTL %d ",
+                                        bdTableName, appConfig.tableTTLSeconds);
                         preparedInsertRaw = getCassandraClient().prepare(insert_stmt);
                     }
                 }
@@ -227,8 +227,8 @@ public class CassandraBD  extends AppBase {
     @Override
     public long doWrite(int threadIdx) {
         long input_key = getLoadGenerator().getKeyToWrite().asNumber();
-        long key = input_key / numBuckets;
-        long bucket = 1 + (input_key % numBuckets);
+        int key = (int)(input_key / numBuckets);
+        int bucket = 1 + (int)(input_key % numBuckets);
         // Insert the row.
         BoundStatement boundStatement =
                 getPreparedInsertOrUpdateStmt().bind(key, bucket);
