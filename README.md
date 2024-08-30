@@ -1,4 +1,28 @@
+# Notes towards reproing CE
+
+Has a sample app called CassandraBD which can be used similarly
+The key file is CassandraBD.java
+  For some unknown reason, the UPDATE query using IF xxx ELSE ERROR errors out, even though
+  running the same query from ycqlsh works fine.
+
+  I have dropped the `ELSE ERROR` part and the workload now runs happily.
+
+  To run the workload,
+   1) first we need to run something like
+       java -jar yb-sample-apps.jar --nodes <ip>:9042 --workload CassandraBD --num_unique_keys 1000 --num_buckets 100 --do_updates false
+   2) Then we can do Reads/Updates using
+      java -jar yb-sample-apps.jar --nodes <ip>:9042 --workload CassandraBD --num_unique_keys 1000 --num_buckets 100 --do_updates true --num_threads_write 20 --num_threads_read 40
+
+W0830 09:53:24.848824 23927 process_context.cc:184] SQL Error: Execution Error. Condition on table preauth_unique_count was not satisfied.
+UPDATE preauth_unique_count USING TTL 86400 SET count = count + 1 WHERE key = ? AND bucket = ? IF COUNT < 100000 ELSE ERROR;
+^^^^^^
+I0830 09:53:24.961725 23934 inbound_call.cc:125] Tracing op:
+I0830 09:53:24.961774 23934 trace.cc:442] 0830 09:53:24.963183 (+     0us) inbound_call.cc:115] Created InboundCall
+
 # YugabyteDB workload generator
+
+
+
 
 This repository emulates various workloads against YugabyteDB. YugabyteDB is a multi-model database that supports:
 * YSQL (Distributed SQL API with joins. Compatible with PostgreSQL)
